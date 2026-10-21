@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Autumn-27/artex/db"
+	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/norma/permission"
 	actool "github.com/Autumn-27/norma/tool"
 )
@@ -418,8 +419,9 @@ func execPython(ctx context.Context, interp, key, code string, params map[string
 	defer cancel()
 	c := exec.CommandContext(runCtx, interp, tmp)
 	c.Dir = workDir
-	c.Env = append(os.Environ(), sessionEnv...) // Session proxy environment.
-	for k, v := range params {                  // Mirror scalar parameters into TOOL_<NAME>.
+	c.Env = append(os.Environ(), guard.SecretEnvOverrides(os.Environ())...) // Blank backend secrets.
+	c.Env = append(c.Env, sessionEnv...)                                    // Session proxy environment.
+	for k, v := range params {                                              // Mirror scalar parameters into TOOL_<NAME>.
 		if sv, ok := scalarStr(v); ok {
 			c.Env = append(c.Env, "TOOL_"+strings.ToUpper(k)+"="+sv)
 		}

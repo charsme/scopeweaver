@@ -144,8 +144,8 @@ func (m *MainAgent) Chat(ctx context.Context, taskID int64, mainSeg int, as *db.
 		DeepSeekSearchAPIKey:  m.webSearch.DeepSeekAPIKey,
 		DeepSeekSearchModel:   m.webSearch.DeepSeekModel,
 		WebSearchProxy:        m.webSearch.Proxy,
-		BashEnv:               proxyEnv(m.proxyAddr, m.proxyCACert), // Bash subprocesses inherit the proxy and trusted CA.
-		WorkingDir:            mainDir,                              // Task working directory: <workDir>/tasks/<taskID>.
+		BashEnv:               bashEnv(m.proxyAddr, m.proxyCACert), // Bash subprocesses inherit the proxy and trusted CA, minus backend secrets.
+		WorkingDir:            mainDir,                             // Task working directory: <workDir>/tasks/<taskID>.
 		ToolOutputDir:         cmdOutDir(mainDir),
 		MaxTurns:              m.maxTurns,                             // 0 = unlimited (configurable in agent management)
 		Compaction:            compactionConfig(m.compactionWindow()), // long chats stay within the window
