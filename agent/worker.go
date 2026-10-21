@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Autumn-27/artex/db"
+	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/artex/intercept"
 	"github.com/Autumn-27/norma/agentcore"
 	"github.com/Autumn-27/norma/harness"
@@ -231,6 +232,13 @@ func proxyEnv(proxyAddr, caCert string) []string {
 	return env
 }
 
+// bashEnv is the Bash-subprocess env: proxyEnv routing plus blanking of the backend's
+// secrets (guard.SecretEnvOverrides), so commands the model runs cannot read LLM keys
+// or the database DSN from their inherited environment.
+func bashEnv(proxyAddr, caCert string) []string {
+	return append(proxyEnv(proxyAddr, caCert), guard.SecretEnvOverrides(os.Environ())...)
+}
+
 // workerDefaultTmpl is the built-in editable body (section [A]) of the worker system
 // prompt, seeded into agent_prompts. Traffic guidance and intermediate-artifact rules
 // are NOT here — they are code-owned and appended by workerSystem after rendering
@@ -445,7 +453,7 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 		DeepSeekSearchModel:   w.webSearch.DeepSeekModel,
 		WebSearchProxy:        w.webSearch.Proxy,
 		// Bash HTTP inherits the capture proxy and CA, requiring neither -x nor -k.
-		BashEnv:    proxyEnv(w.proxyAddr, w.proxyCACert),
+		BashEnv:    bashEnv(w.proxyAddr, w.proxyCACert),
 		WorkingDir: runDir,
 		MaxTurns:   w.maxTurns, // 0 = unlimited (configurable in agent management)
 		// Wall-clock budget; zero is unlimited. A task deadline clamps it to the smaller

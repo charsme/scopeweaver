@@ -388,8 +388,8 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 		DeepSeekSearchAPIKey:  p.webSearch.DeepSeekAPIKey,
 		DeepSeekSearchModel:   p.webSearch.DeepSeekModel,
 		WebSearchProxy:        p.webSearch.Proxy,
-		BashEnv:               proxyEnv(p.proxyAddr, p.proxyCACert), // Bash subprocesses inherit the proxy and trusted CA.
-		WorkingDir:            taskDir,                              // Task working directory: <workDir>/tasks/<taskID>.
+		BashEnv:               bashEnv(p.proxyAddr, p.proxyCACert), // Bash subprocesses inherit the proxy and trusted CA, minus backend secrets.
+		WorkingDir:            taskDir,                             // Task working directory: <workDir>/tasks/<taskID>.
 		ToolOutputDir:         cmdOutDir(taskDir),
 		MaxTurns:              p.maxTurns, // 0 = unlimited (configurable in agent management)
 		MaxDuration:           maxDur,     // 0 means unlimited; with a deadline, use remaining task time.

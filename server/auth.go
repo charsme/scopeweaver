@@ -2,9 +2,11 @@ package server
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"github.com/Autumn-27/artex/locale"
 	"log"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,6 +25,8 @@ const (
 	keyChars         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	minPasswordRunes = 8
 	maxPasswordBytes = 72
+	// initTokenEnv names the bootstrap secret POST /api/auth/init requires when set.
+	initTokenEnv = "SCOPEWEAVER_INIT_TOKEN"
 )
 
 // Database read failures must never be treated as an uninitialized password.
@@ -159,6 +163,10 @@ func (s *Server) authInit(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 403, locale.Text(responseLanguage(w), "Password is already set"))
 		return
 	}
+	if !initAllowed(r) {
+		writeErr(w, 403, "Initialization requires the "+initTokenEnv+" token (X-Init-Token header) or a loopback connection")
+		return
+	}
 	var req struct {
 		Password string `json:"password"`
 	}
@@ -191,6 +199,22 @@ func (s *Server) authInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"token": tok})
+}
+
+// initAllowed gates first-run initialization so a fresh install reachable over the
+// network cannot be claimed by its first visitor. With SCOPEWEAVER_INIT_TOKEN set the
+// X-Init-Token header must match it; otherwise only loopback connections may initialize.
+func initAllowed(r *http.Request) bool {
+	if want := os.Getenv(initTokenEnv); want != "" {
+		got := r.Header.Get("X-Init-Token")
+		return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // POST /api/auth/change-password — changes the admin password. Requires a valid

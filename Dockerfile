@@ -8,7 +8,7 @@ COPY web/ ./
 COPY locale/definitions.json /src/locale/definitions.json
 RUN npm run build:static
 
-FROM --platform=$BUILDPLATFORM golang:1.26.3-bookworm AS backend
+FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm AS backend
 ARG TARGETOS=linux
 ARG TARGETARCH
 ARG VERSION=dev

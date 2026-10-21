@@ -265,3 +265,29 @@ func TestHTTPToolUsesManagerProxyURL(t *testing.T) {
 		})
 	}
 }
+
+// Script tools are Python the model can author; it must not read the backend's LLM
+// keys or DB DSN, but values the session sets explicitly (proxy env) must still apply.
+func TestExecPythonHidesBackendSecrets(t *testing.T) {
+	interp := detectPython()
+	if interp == "" {
+		t.Skip("Python unavailable")
+	}
+	t.Setenv("OPENAI_API_KEY", "sk-should-not-leak")
+	t.Setenv("ARTEX_PG_DSN", "postgres://artex:pw@db/artex")
+	code := `import os
+print("key=" + os.environ.get("OPENAI_API_KEY", ""))
+print("dsn=" + os.environ.get("ARTEX_PG_DSN", ""))
+print("proxy=" + os.environ.get("HTTPS_PROXY", ""))
+`
+	out, err := execPython(context.Background(), interp, "test", code, nil,
+		t.TempDir(), []string{"HTTPS_PROXY=http://127.0.0.1:8788"}, 10*time.Second)
+	if err != nil {
+		t.Fatalf("execPython error: %v", err)
+	}
+	for _, want := range []string{"key=\n", "dsn=\n", "proxy=http://127.0.0.1:8788"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("output missing %q:\n%s", want, out)
+		}
+	}
+}

@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -46,6 +48,26 @@ func TestProxyEnvInjectsCAWhenRecording(t *testing.T) {
 	for _, want := range []string{"SSL_CERT_FILE=", "CURL_CA_BUNDLE=", "REQUESTS_CA_BUNDLE=", "NODE_EXTRA_CA_CERTS="} {
 		if !has(want) {
 			t.Errorf("proxyEnv with CA missing %s: %v", want, env)
+		}
+	}
+}
+
+// A nil BashEnv makes norma inherit the backend environment unchanged, leaking LLM keys
+// and the DB DSN to every command the model runs. bashEnv must blank them even when no
+// proxy is configured, and a real child process must observe the blank value.
+func TestBashEnvHidesBackendSecretsFromCommands(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-should-not-leak")
+	t.Setenv("ARTEX_PG_DSN", "postgres://artex:pw@db/artex")
+	for _, proxy := range []string{"", "http://127.0.0.1:8788"} {
+		env := bashEnv(proxy, "")
+		cmd := exec.Command("sh", "-c", `printf '%s|%s' "$ANTHROPIC_API_KEY" "$ARTEX_PG_DSN"`)
+		cmd.Env = append(os.Environ(), env...) // Same merge norma's withEnv performs.
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out) != "|" {
+			t.Fatalf("proxy=%q: command saw backend secrets %q", proxy, out)
 		}
 	}
 }

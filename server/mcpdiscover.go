@@ -4,9 +4,12 @@ import (
 	"context"
 	"github.com/Autumn-27/artex/locale"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/Autumn-27/artex/db"
+	"github.com/Autumn-27/artex/guard"
 	"github.com/Autumn-27/artex/mcphttp"
 	"github.com/Autumn-27/norma/mcp"
 	actool "github.com/Autumn-27/norma/tool"
@@ -27,7 +30,15 @@ func connectMCP(ctx context.Context, m *db.MCPServer) (mcpClient, error) {
 		if m.Command == "" {
 			return nil, locale.Errorf("stdio transport requires a command")
 		}
-		return mcp.NewStdioClient(ctx, m.Name, m.Command, jsonStrMap(m.Env), jsonStrSlice(m.Args)...)
+		// Blank inherited backend secrets; the server's own configured env still wins.
+		env := map[string]string{}
+		for _, kv := range guard.SecretEnvOverrides(os.Environ()) {
+			env[strings.TrimSuffix(kv, "=")] = ""
+		}
+		for k, v := range jsonStrMap(m.Env) {
+			env[k] = v
+		}
+		return mcp.NewStdioClient(ctx, m.Name, m.Command, env, jsonStrSlice(m.Args)...)
 	case "http":
 		if m.URL == "" {
 			return nil, locale.Errorf("HTTP transport requires a URL")
