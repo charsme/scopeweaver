@@ -127,7 +127,9 @@ func TestAuthInitValidatesPassword(t *testing.T) {
 			t.Cleanup(func() { _, _ = s.m.pg.Exec(`DELETE FROM settings WHERE key=$1`, authPassKey) })
 			body, _ := json.Marshal(map[string]string{"password": tc.pw})
 			w := httptest.NewRecorder()
-			s.authInit(w, httptest.NewRequest("POST", "/api/auth/init", strings.NewReader(string(body))))
+			r := httptest.NewRequest("POST", "/api/auth/init", strings.NewReader(string(body)))
+			r.RemoteAddr = "127.0.0.1:1234" // initialization is gated to loopback without a bootstrap token
+			s.authInit(w, r)
 			if w.Code != tc.status {
 				t.Fatalf("status=%d want %d; body=%s", w.Code, tc.status, w.Body.String())
 			}
@@ -162,7 +164,9 @@ func TestAuthInitConcurrentRequestsCannotOverwritePassword(t *testing.T) {
 			<-start
 			body := fmt.Sprintf(`{"password":"password-%d"}`, i)
 			w := httptest.NewRecorder()
-			s.authInit(w, httptest.NewRequest("POST", "/api/auth/init", strings.NewReader(body)))
+			r := httptest.NewRequest("POST", "/api/auth/init", strings.NewReader(body))
+			r.RemoteAddr = "127.0.0.1:1234" // initialization is gated to loopback without a bootstrap token
+			s.authInit(w, r)
 			statuses[i] = w.Code
 		}()
 	}
