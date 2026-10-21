@@ -23,7 +23,7 @@ Last updated: 2026-10-20 · Audited commit: `573344b` (fork == upstream main, 0 
 - **osv-scanner**: 10 npm vulns in `skills/api-recon/scripts/package-lock.json` (`ip-address`, `basic-ftp`, `extract-zip` — 4 High). `web/` lockfile clean.
 - Not reviewed: other Go deps (`go-mitmproxy`, `projectdiscovery/*`), norma `noa/` internals line-by-line, no dynamic (runtime traffic) analysis.
 
-## Progress (branch `security/adoption-hardening`, uncommitted)
+## Progress (branch `security/adoption-hardening`)
 
 Verified 2026-10-20 on go1.26.9: `go build`, `go vet` clean; full suite against throwaway Postgres 16 —
 2016 pass / 0 fail / 4 skip (opt-in E2E/live suites); `govulncheck` 0 reachable (was 10).
@@ -34,6 +34,7 @@ Each new test was mutation-checked: it fails when its fix is reverted.
 | SW-02 | `server/auth.go` `initAllowed`: init needs `SCOPEWEAVER_INIT_TOKEN` via `X-Init-Token`, else loopback only. Compose + `.env.example` pass the token. Docker users set the password with `curl` (UI init page cannot send the header). | `server/auth_init_gate_test.go`; existing DB init tests updated to loopback |
 | SW-04 | `guard.SecretEnvOverrides` blanks `*KEY*/*TOKEN*/*SECRET*/*PASSWORD*/*DSN*/*AUTH*` vars for agent Bash (all 4 agents via `bashEnv`), custom command/script tools, stdio MCP (configured server env still wins). | `guard/secretenv_test.go`, `agent/proxyenv_test.go`, `server/customtool_test.go` (real child processes). stdio-MCP path: no test |
 | SW-06 | `selfupdate.Repo` → `charsme/scopeweaver` (no releases yet ⇒ updater reports none) | `selfupdate/repo_test.go` guards against upstream merge reverting it |
+| SW-19 | Connection test passes an empty tool set and disables background tasks (was 13 tools incl. Bash offered to the endpoint) | `agent/provider_conntest_test.go` (fake endpoint replies with a Bash call) |
 | SW-07 | `go 1.26.9`, `Dockerfile` `golang:1.26.9-bookworm`, `x/net` 0.60.0, `x/crypto` 0.57.0, `klauspost/compress` 1.18.7 (+ `x/sys`, `x/text`, `x/sync`, `x/mod` minor bumps via tidy) | govulncheck |
 
 **SW-04 limitation:** blanking child env does not stop a same-UID command reading the backend's
@@ -79,7 +80,7 @@ or secrets delivered outside the process environment (see SW-20).
 
 | ID | Item | Evidence | Done when |
 |---|---|---|---|
-| SW-19 | LLM connection test runs agentcore with no `Tools` ⇒ norma `DefaultTools()` (incl. Bash) in bypass mode; a malicious or compromised LLM endpoint can answer the ping with a command | `agent/provider.go:572`, norma `agentcore/agentcore.go:250` | Connection test runs with an explicit empty tool set |
+| SW-19 | ✅ LLM connection test offered norma `DefaultTools()` (incl. Bash) plus background-task tools to the endpoint in bypass mode. Execution not reproduced under `MaxTurns: 1`; offer removed | `agent/provider.go`, norma `agentcore/agentcore.go:250` | Endpoint receives zero tools |
 | SW-20 | Agent commands run as the backend's UID and can read `/proc/<pid>/environ` | — | Agent commands run under a separate UID, or backend secrets loaded from files/DB instead of env |
 | SW-21 | Web UI init page cannot send `X-Init-Token`; Docker first-run needs `curl` | `web/src/lib/api.ts:232` | Optional token field on init page, or documented runbook only |
 

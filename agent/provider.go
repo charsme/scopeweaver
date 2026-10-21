@@ -28,6 +28,7 @@ import (
 	"github.com/Autumn-27/norma/compaction"
 	"github.com/Autumn-27/norma/llm"
 	acperm "github.com/Autumn-27/norma/permission"
+	actool "github.com/Autumn-27/norma/tool"
 	"github.com/Autumn-27/norma/transcript"
 )
 
@@ -567,12 +568,16 @@ func TestConnection(ctx context.Context, c Config) (time.Duration, string, error
 	// transport success. A sufficient budget lets the model emit OK and stop cleanly.
 	// Keep EscalateMaxTokens false to avoid wasteful retry/resume loops after truncation.
 	reply, err := agentcore.Run(ctx, agentcore.Options{
-		Provider:       prov,
-		SystemPrompt:   []string{locale.Text(locale.FromContext(ctx), "This is a connection test. Output exactly the two characters OK, with no reasoning, explanation, or other content.")},
-		PermissionMode: acperm.ModeBypass,
-		MaxTurns:       1,
-		MaxTokens:      8192,
-		NonStreaming:   !c.Stream, // Test using this profile's actual streaming/non-streaming mode.
+		Provider: prov,
+		// Non-nil and empty: nil makes agentcore fall back to DefaultTools (Bash included),
+		// letting the configured endpoint answer the ping with host commands.
+		Tools:                  []actool.CoreTool{},
+		DisableBackgroundTasks: true, // Otherwise Monitor/Task* tools are still advertised.
+		SystemPrompt:           []string{locale.Text(locale.FromContext(ctx), "This is a connection test. Output exactly the two characters OK, with no reasoning, explanation, or other content.")},
+		PermissionMode:         acperm.ModeBypass,
+		MaxTurns:               1,
+		MaxTokens:              8192,
+		NonStreaming:           !c.Stream, // Test using this profile's actual streaming/non-streaming mode.
 	}, "ping")
 	lat := time.Since(start)
 	if err != nil {
